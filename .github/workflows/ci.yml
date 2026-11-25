@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets --locked -- -D warnings
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # The parity tests compare replies with memcached 1.6.45; Ubuntu's packaged memcached is
+      # older and replies differently, so they run on macOS only, with Homebrew's current one.
+      - name: Install memcached
+        if: runner.os == 'macOS'
+        run: brew install memcached
+      - name: Skip parity tests
+        if: runner.os == 'Linux'
+        run: echo "FERRITED_SKIP_PARITY=1" >> "$GITHUB_ENV"
+      - run: cargo test --locked
