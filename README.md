@@ -2,7 +2,7 @@
 
 A memcached-compatible cache server written in Rust. It speaks memcached's meta and classic text protocols, so existing clients such as Dalli work unchanged.
 
-Status: not yet released. Nodes persist their data to disk and replicate every change to each other, and a node that restarts waits until it has caught up with its peers before it serves clients.
+Nodes persist their data to disk and replicate every change to each other, and a node that restarts waits until it has caught up with its peers before it serves clients.
 
 ## Running
 
