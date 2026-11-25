@@ -1,0 +1,38 @@
+[package]
+name = "ferrited"
+version = "0.1.0"
+edition = "2024"
+description = "A memcached-compatible cache server with persistence and replication"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+ahash = "0.8"
+base64 = "0.22"
+bytes = "1"
+clap = { version = "4", features = ["derive"] }
+crc32fast = "1"
+crossbeam-queue = "0.3"
+getrandom = "0.3"
+hmac = "0.12"
+indexmap = "2"
+memchr = "2"
+mio = { version = "1", features = ["os-poll", "net"] }
+parking_lot = "0.12"
+sha2 = "0.10"
+tokio = { version = "1", features = ["rt-multi-thread", "net", "io-util", "time", "signal", "macros", "sync"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+# On arm64, sha2 hashes in software unless `asm` is on; this turns on its ARMv8 SHA-2
+# instructions, which it detects at run time, falling back to software on a CPU without them.
+# Frame signing hashes every replicated byte. x86_64 already uses the SHA extensions without it.
+[target.'cfg(target_arch = "aarch64")'.dependencies]
+sha2 = { version = "0.10", features = ["asm"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1

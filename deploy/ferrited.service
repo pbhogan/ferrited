@@ -1,0 +1,112 @@
+# systemd unit for one ferrited node. Install as /etc/systemd/system/ferrited.service, with the
+# binary at /usr/local/bin/ferrited, this node's settings in /etc/ferrited/ferrited.env (see
+# ferrited.env.example, node1.env and node2.env) and the replication secret in
+# /etc/ferrited/repl-secret (root-owned, mode 0600). See docs/operations.md.
+
+[Unit]
+Description=ferrited cache server (memcached-compatible, persistent, replicated)
+# Listening on a private address needs that address configured first.
+Wants=network-online.target
+After=network-online.target
+# A crashing node gets a full sync from its peer at each start; stop retrying once it has been
+# started 10 times in 10 minutes rather than make the peer send one every few seconds. Manual
+# starts and restarts count too: after many in a row, `systemctl reset-failed ferrited`.
+StartLimitIntervalSec=10min
+StartLimitBurst=10
+
+[Service]
+# ferrited sends READY=1 to $NOTIFY_SOCKET once its client port accepts connections: at once
+# without peers, and with peers only once it has caught up with them (or after --sync-timeout).
+# So `systemctl start` and `systemctl restart` return when the node actually serves.
+Type=notify
+NotifyAccess=main
+
+EnvironmentFile=/etc/ferrited/ferrited.env
+# ${VAR} is one argument; $VAR (unbraced) is split on spaces and may be empty, so optional and
+# repeatable flags go in FERRITED_PEERS, FERRITED_METRICS and FERRITED_EXTRA_ARGS. %S/ferrited
+# is the state directory (/var/lib/ferrited); systemd sets $CREDENTIALS_DIRECTORY (see
+# LoadCredential=).
+ExecStart=/usr/local/bin/ferrited \
+	--listen ${FERRITED_LISTEN} \
+	--port ${FERRITED_PORT} \
+	--memory-limit ${FERRITED_MEMORY_MB} \
+	--conn-limit ${FERRITED_CONN_LIMIT} \
+	--threads ${FERRITED_THREADS} \
+	--node-id ${FERRITED_NODE_ID} \
+	--repl-port ${FERRITED_REPL_PORT} \
+	$FERRITED_PEERS \
+	--repl-secret-file ${CREDENTIALS_DIRECTORY}/repl-secret \
+	--data-dir %S/ferrited \
+	$FERRITED_METRICS \
+	$FERRITED_EXTRA_ARGS
+
+# A user allocated while the service runs; no account to create. StateDirectory= makes
+# /var/lib/ferrited (really /var/lib/private/ferrited) and gives it to that user, keeping
+# ownership right across restarts even if the UID changes.
+DynamicUser=yes
+StateDirectory=ferrited
+StateDirectoryMode=0700
+# Read by systemd as root and handed to the service as $CREDENTIALS_DIRECTORY/repl-secret,
+# readable by the service alone; the file itself can stay root-only.
+LoadCredential=repl-secret:/etc/ferrited/repl-secret
+# /run/ferrited, created for the service and removed when it stops. Do not add -s/--socket:
+# it replaces the TCP client port, so the app servers could not connect.
+RuntimeDirectory=ferrited
+
+# ferrited raises its soft descriptor limit to cover -c plus a reserve, but only up to the hard
+# limit, which this sets (both limits).
+LimitNOFILE=65536
+
+# A clean stop: stop accepting, let connections finish for up to 5 s, stop replication (up to
+# 2 s), then write and fsync everything queued, and take a snapshot of the whole store if
+# changes were dropped from the log. That snapshot is the slow part: it writes every item, so
+# allow for -m at the disk's write speed (8 GiB at 200 MB/s is about 40 s). A node killed at
+# the timeout restarts as after a crash, with a full sync from its peer.
+KillSignal=SIGTERM
+TimeoutStopSec=120
+# Start covers local recovery (reading the newest snapshot and the log after it), then, with
+# peers, waiting for them (up to --sync-timeout, 60 s, with no peer reachable) and catching up,
+# which may be a full sync of the peer's whole data set. --sync-timeout counts only time with
+# no peer reachable, so a peer that stays reachable but keeps recovering, or a long catch-up,
+# can outlast this; systemd then logs "start operation timed out" and restarts the node, over
+# and over. Raise it for very large data sets, and set it to infinity with --sync-timeout 0.
+TimeoutStartSec=10min
+Restart=on-failure
+RestartSec=5s
+
+# Hardening. ferrited needs: TCP sockets (clients, replication, metrics), a Unix datagram socket
+# (NOTIFY_SOCKET); epoll and eventfd (mio, Tokio); its data
+# directory (open, write, fsync, flock, rename, unlink); setrlimit within the hard limit;
+# signals; threads. Nothing else.
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateUsers=yes
+PrivateIPC=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+SystemCallErrorNumber=EPERM
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
