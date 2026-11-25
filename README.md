@@ -4,10 +4,32 @@ A memcached-compatible cache server written in Rust. It speaks memcached's meta 
 
 Nodes persist their data to disk and replicate every change to each other, and a node that restarts waits until it has caught up with its peers before it serves clients.
 
+## Install
+
+With Homebrew, on macOS or Linux:
+
+```bash
+brew install pbhogan/ferrited/ferrited
+brew services start ferrited   # optional: runs in memory on 127.0.0.1:11211
+```
+
+Or download a binary from the [releases page](https://github.com/pbhogan/ferrited/releases) for Linux (x86_64 or arm64, glibc 2.34 or newer) or macOS (Apple Silicon or Intel), and check it against `SHA256SUMS`:
+
+```bash
+shasum -a 256 -c SHA256SUMS --ignore-missing
+tar -xzf ferrited-*.tar.gz
+```
+
+Or build it from source with a recent stable Rust:
+
+```bash
+cargo install --locked --git https://github.com/pbhogan/ferrited
+```
+
 ## Running
 
 ```bash
-cargo run --release -- -p 11211 -m 1024
+ferrited -p 11211 -m 1024
 ```
 
 | Flag | Meaning | Default |
@@ -30,7 +52,7 @@ ferrited has no authentication. It listens on `127.0.0.1` unless told otherwise;
 Persistence is off unless you give a data directory. Without one, ferrited keeps everything in memory, like memcached, and writes no files.
 
 ```bash
-cargo run --release -- -m 1024 --data-dir /var/lib/ferrited
+ferrited -m 1024 --data-dir /var/lib/ferrited
 ```
 
 With `--data-dir`, every change is queued in memory (the oplog) and a background thread appends it to a log on disk and fsyncs the log on a timer, so requests never wait for the disk. After a restart or a crash, ferrited reloads its data before it opens the client port.

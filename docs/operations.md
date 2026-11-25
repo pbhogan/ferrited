@@ -12,7 +12,9 @@ The files are in `deploy/`:
 
 ## Install
 
-1. **Build.** ferrited needs a recent stable Rust (install it with rustup). On a Linux machine of the servers' architecture, ideally the servers' own distribution so the binary links against the same glibc:
+1. **Get the binary.** The [releases page](https://github.com/pbhogan/ferrited/releases) has Linux binaries for x86_64 and arm64 that run on glibc 2.34 or newer (Ubuntu 22.04, Debian 12, RHEL 9 and later). Check the download against `SHA256SUMS` and unpack it.
+
+   Or build it. ferrited needs a recent stable Rust (install it with rustup). On a Linux machine of the servers' architecture, ideally the servers' own distribution so the binary links against the same glibc:
 
    ```bash
    cargo build --release --locked
