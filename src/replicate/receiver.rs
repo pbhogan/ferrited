@@ -920,9 +920,17 @@ mod tests {
     async fn an_unsigned_frame_on_a_signed_link_drops_it() {
         let (node, mut stream, mut keys) = signed_link().await;
         write_frames(&mut stream, &[batch(20, "bad")]).await;
-        // Untagged, its payload's first bytes are read as the header tag.
-        let heartbeats = [(); 4].map(|()| Frame::Heartbeat);
-        write_frames(&mut stream, &heartbeats).await;
+        // Untagged, its payload's first bytes are read as the header tag. The heartbeats pad the
+        // stream past that misread frame; the receiver may already have dropped the link.
+        let mut buf = Vec::new();
+        for _ in 0..4 {
+            if frame::write_frame(&mut stream, &Frame::Heartbeat, &mut buf)
+                .await
+                .is_err()
+            {
+                break;
+            }
+        }
         dropped(&node, &mut stream, &mut keys).await;
         assert!(!holds(&node, "bad"));
         assert_eq!(progress(&node), (1, 0, Some(10)));
