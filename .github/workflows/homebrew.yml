@@ -1,0 +1,59 @@
+name: Homebrew
+
+# Points the tap's formula at a release once it is published; a draft's files cannot be
+# downloaded publicly, so the formula must not reference them before then.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, e.g. v1.0.0
+        required: true
+
+jobs:
+  update-formula:
+    if: github.event_name == 'workflow_dispatch' || !github.event.release.prerelease
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: pbhogan/homebrew-ferrited
+          ssh-key: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+      - name: Update the formula
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${TAG#v}"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern SHA256SUMS
+          # Each url line names its target; the sha256 line after it gets that target's sum.
+          awk -v version="$version" '
+            NR == FNR { sub(/\.tar\.gz$/, "", $2); sums[$2] = $1; next }
+            /url "/ {
+              match($0, /ferrited-[^-]+-[^"]+\.tar\.gz/)
+              target = substr($0, RSTART, RLENGTH)
+              sub(/^ferrited-[^-]+-/, "", target)
+              sub(/\.tar\.gz$/, "", target)
+              key = "ferrited-" version "-" target
+              if (!(key in sums)) { print "no checksum for " key > "/dev/stderr"; exit 1 }
+              sub(/download\/v[^\/]+\/ferrited-[^-]+-/, "download/v" version "/ferrited-" version "-")
+              pending = sums[key]
+            }
+            /sha256 "/ && pending != "" { sub(/"[0-9a-f]+"/, "\"" pending "\""); pending = "" }
+            { print }
+          ' SHA256SUMS Formula/ferrited.rb > ferrited.rb.new
+          mv ferrited.rb.new Formula/ferrited.rb
+          rm SHA256SUMS
+          git diff
+      - name: Commit and push
+        run: |
+          if git diff --quiet; then
+            echo "Formula already at ${TAG#v}"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "ferrited ${TAG#v}"
+          git push
