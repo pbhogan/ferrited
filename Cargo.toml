@@ -40,3 +40,47 @@ tempfile = "3"
 [profile.release]
 lto = "fat"
 codegen-units = 1
+
+# Linux packages, built by scripts/package.sh. The service is installed but neither enabled nor
+# started, and no replication secret is created: /etc/ferrited/ferrited.env and
+# /etc/ferrited/repl-secret must be set up first (docs/operations.md).
+[package.metadata.deb]
+maintainer = "Patrick Hogan <3558+pbhogan@users.noreply.github.com>"
+section = "database"
+priority = "optional"
+depends = "$auto"
+extended-description = """\
+ferrited speaks memcached's meta and classic text protocols, so existing clients such as \
+Dalli work unchanged. Nodes persist their data to disk and replicate every change to each \
+other."""
+assets = [
+	["target/release/ferrited", "usr/bin/", "755"],
+	["deploy/ferrited.env.example", "etc/ferrited/ferrited.env", "640"],
+	["README.md", "usr/share/doc/ferrited/", "644"],
+	["LICENSE-MIT", "usr/share/doc/ferrited/", "644"],
+	["LICENSE-APACHE", "usr/share/doc/ferrited/", "644"],
+	["docs/operations.md", "usr/share/doc/ferrited/", "644"],
+	["deploy/node1.env", "usr/share/doc/ferrited/examples/", "644"],
+	["deploy/node2.env", "usr/share/doc/ferrited/examples/", "644"],
+	["deploy/ferrited.nft", "usr/share/doc/ferrited/examples/", "644"],
+]
+conf-files = ["/etc/ferrited/ferrited.env"]
+systemd-units = { unit-scripts = "target/pkg", enable = false, start = false }
+
+[package.metadata.generate-rpm]
+release = "1"
+assets = [
+	{ source = "target/release/ferrited", dest = "/usr/bin/ferrited", mode = "755" },
+	{ source = "target/pkg/ferrited.service", dest = "/usr/lib/systemd/system/ferrited.service", mode = "644" },
+	{ source = "deploy/ferrited.env.example", dest = "/etc/ferrited/ferrited.env", mode = "640", config = "noreplace" },
+	{ source = "README.md", dest = "/usr/share/doc/ferrited/README.md", mode = "644", doc = true },
+	{ source = "LICENSE-MIT", dest = "/usr/share/licenses/ferrited/LICENSE-MIT", mode = "644", doc = true },
+	{ source = "LICENSE-APACHE", dest = "/usr/share/licenses/ferrited/LICENSE-APACHE", mode = "644", doc = true },
+	{ source = "docs/operations.md", dest = "/usr/share/doc/ferrited/operations.md", mode = "644", doc = true },
+	{ source = "deploy/node1.env", dest = "/usr/share/doc/ferrited/examples/node1.env", mode = "644", doc = true },
+	{ source = "deploy/node2.env", dest = "/usr/share/doc/ferrited/examples/node2.env", mode = "644", doc = true },
+	{ source = "deploy/ferrited.nft", dest = "/usr/share/doc/ferrited/examples/ferrited.nft", mode = "644", doc = true },
+]
+post_install_script = "systemctl daemon-reload >/dev/null 2>&1 || :"
+pre_uninstall_script = "if [ $1 -eq 0 ]; then systemctl --no-reload disable --now ferrited.service >/dev/null 2>&1 || :; fi"
+post_uninstall_script = "systemctl daemon-reload >/dev/null 2>&1 || :"

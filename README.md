@@ -13,7 +13,9 @@ brew install pbhogan/ferrited/ferrited
 brew services start ferrited   # optional: runs in memory on 127.0.0.1:11211
 ```
 
-Or download a binary from the [releases page](https://github.com/pbhogan/ferrited/releases) for Linux (x86_64 or arm64, glibc 2.34 or newer) or macOS (Apple Silicon or Intel), and check it against `SHA256SUMS`:
+On Linux servers, use the `.deb` or `.rpm` from the [releases page](https://github.com/pbhogan/ferrited/releases), which also installs a systemd unit; see [docs/operations.md](docs/operations.md).
+
+Or download a binary from the releases page for Linux (x86_64 or arm64, glibc 2.34 or newer) or macOS (Apple Silicon or Intel), and check it against `SHA256SUMS`:
 
 ```bash
 shasum -a 256 -c SHA256SUMS --ignore-missing

@@ -36,17 +36,29 @@ jobs:
         with:
           targets: ${{ matrix.target }}
       - run: cargo build --release --locked --target ${{ matrix.target }}
-      - name: Package
+      - name: Archive
         run: |
           name="ferrited-${GITHUB_REF_NAME#v}-${{ matrix.target }}"
-          mkdir "$name"
+          mkdir "$name" dist
           cp "target/${{ matrix.target }}/release/ferrited" README.md LICENSE-MIT LICENSE-APACHE "$name/"
-          tar -czf "$name.tar.gz" "$name"
-          shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
+          tar -czf "dist/$name.tar.gz" "$name"
+      - name: Install packaging tools
+        if: runner.os == 'Linux'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deb,cargo-generate-rpm
+      - name: Build .deb and .rpm
+        if: runner.os == 'Linux'
+        run: scripts/package.sh ${{ matrix.target }} | xargs -I{} cp {} dist/
+      - name: Checksums
+        working-directory: dist
+        run: |
+          for file in *; do shasum -a 256 "$file" > "$file.sha256"; done
+          ls -l
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}
-          path: ferrited-*.tar.gz*
+          path: dist/*
 
   release:
     needs: build
@@ -65,4 +77,4 @@ jobs:
           cat *.sha256 > SHA256SUMS
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft \
             --title "ferrited ${GITHUB_REF_NAME#v}" --generate-notes \
-            ferrited-*.tar.gz SHA256SUMS
+            ferrited-*.tar.gz ferrited_*.deb ferrited-*.rpm SHA256SUMS
