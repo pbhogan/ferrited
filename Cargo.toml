@@ -4,6 +4,10 @@ version = "1.0.0"
 edition = "2024"
 description = "A memcached-compatible cache server with persistence and replication"
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/pbhogan/ferrited"
+readme = "README.md"
+keywords = ["memcached", "cache", "server", "replication", "persistence"]
+categories = ["caching", "database-implementations", "network-programming"]
 
 [dependencies]
 ahash = "0.8"
